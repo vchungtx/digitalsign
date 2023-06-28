@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Demo Sign</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            .example {
+                padding: 10px;
+                border: 1px solid #ccc;
+            }
+
+            #drop_zone {
+                border: 2px dashed #bbb;
+                -moz-border-radius: 5px;
+                -webkit-border-radius: 5px;
+                border-radius: 5px;
+                padding: 100px;
+                text-align: center;
+                font: 20pt bold 'Vollkorn';
+                color: #bbb;
+            }
+            .loader {
+                border: 3px solid #f3f3f3; /* Light grey */
+                border-top: 3px solid #3498db; /* Blue */
+                border-radius: 50%;
+                animation: spin 2s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            #loading{
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                margin-top: -50px;
+                margin-left: -50px;
+                width: 30px;
+                height: 30px;
+            }​
+        </style>
+
+        <style type="text/css">.as-console-wrapper { position: fixed; bottom: 0; left: 0; right: 0; max-height: 150px; overflow-y: scroll; overflow-x: hidden; border-top: 1px solid #000; display: none; }
+            .as-console { background: #e9e9e9; border: 1px solid #ccc; display: table; width: 100%; border-collapse: collapse; }
+            .as-console-row { display: table-row; font-family: monospace; font-size: 13px; }
+            .as-console-row:after { display: table-cell; padding: 3px 6px; color: rgba(0,0,0,.35); border: 1px solid #ccc; content: attr(data-date); vertical-align: top; }
+            .as-console-row + .as-console-row > * { border: 1px solid #ccc; }
+            .as-console-row-code { width: 100%; white-space: pre-wrap; padding: 3px 5px; display: table-cell; font-family: monospace; font-size: 13px; vertical-align: middle; }
+            .as-console-error:before { content: 'Error: '; color: #f00; }
+            .as-console-assert:before { content: 'Assertion failed: '; color: #f00; }
+            .as-console-info:before { content: 'Info: '; color: #00f; }
+            .as-console-warning:before { content: 'Warning: '; color: #e90 }
+            @-webkit-keyframes flash { 0% { background: rgba(255,240,0,.25); } 100% { background: none; } }
+            @-moz-keyframes flash { 0% { background: rgba(255,240,0,.25); } 100% { background: none; } }
+            @-ms-keyframes flash { 0% { background: rgba(255,240,0,.25); } 100% { background: none; } }
+            @keyframes flash { 0% { background: rgba(255,240,0,.25); } 100% { background: none; } }
+            .as-console-row-code, .as-console-row:after { -webkit-animation: flash 1s; -moz-animation: flash 1s; -ms-animation: flash 1s; animation: flash 1s; }
+        </style>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function () {
+                hideLoading();
+                getCertificates();
+            });
+            function showLoading() {
+                var x = document.getElementById("loading");
+                x.style.display = "block";
+
+            }
+
+            function hideLoading() {
+                var x = document.getElementById("loading");
+                x.style.display = "none";
+
+            }
+
+            function getCertificates()
+            {
+                showLoading();
+                var certificateChain;
+
+                if ("WebSocket" in window)
+                {
+                    //alert("WebSocket is supported by your Browser!");
+
+                    // Let us open a web socket
+                    var ws = new WebSocket("ws://localhost:8887");
+                    var message = {
+                        'command': 'getCertificates',
+                    };
+                    ws.onopen = function ()
+                    {
+                        ws.send(JSON.stringify(message));
+                    };
+                    ws.onerror = function ()
+                    {
+                        alert("Bạn cần cài đặt Plugin để thực hiện chức năng này");
+                        window.open("/signplugin.zip");
+                        hideLoading();
+                    };
+
+                    ws.onmessage = function (evt)
+                    {
+
+                        var cbHtml = '<label for="certificate">Certificate:</label>' +
+                                '<select name="certificate" id="certificate">' +
+                                '<option value="">Select certificate</option>';
+                        hideLoading();
+                        var received_msg = evt.data;
+
+                        var obj = JSON.parse(received_msg);
+                        if (obj.code == '0') {
+                            var certs = JSON.parse(obj.data);
+                            for (i = 0; i < certs.length; i++) {
+                                var cert = certs[i];
+                                cbHtml += '<option value="' + cert.certBO.serialNumber + ',' + cert.certBO.certBase64 + '">' + cert.certBO.cn + '(' + cert.certBO.validFrom + ' - ' + cert.certBO.validTo + ')' + '</option>';
+                            }
+                            cbHtml += '</select> <button onclick="getCertificates();return false;"> Refresh</button>';
+                            document.getElementById('cbCert').innerHTML = cbHtml;
+                        } else {
+                            alert(received_msg);
+                        }
+
+
+
+                    };
+
+                    ws.onclose = function ()
+                    {
+                        // websocket is closed.
+                        //alert("Connection is closed..."); 
+                    };
+                } else
+                {
+                    // The browser doesn't support WebSocket
+                    alert("WebSocket NOT supported by your Browser!");
+                }
+            }
+
+            function sign()
+            {
+                showLoading();
+                var certInfo = document.getElementById('certificate').value.split(",");
+                if (certInfo.length > 1) {
+                    var serial = certInfo[0];
+                    var certBase64 = certInfo[1];
+                    var pin = document.getElementById('pin').value;
+
+                    if ("WebSocket" in window)
+                    {
+                        //alert("WebSocket is supported by your Browser!");
+
+                        // Let us open a web socket
+                        var ws = new WebSocket("ws://localhost:8887");
+                        var message = {
+                            'command': 'verifyPin',
+                            'serial': serial,
+                            'pin': pin,
+                        };
+                        ws.onopen = function ()
+                        {
+                            ws.send(JSON.stringify(message));
+                        };
+
+                        ws.onmessage = function (evt)
+                        {
+                            hideLoading();
+                            var received_msg = evt.data;
+                            var obj = JSON.parse(received_msg);
+                            ws.close();
+                            if (obj.code == '0') {
+                                var actionUrl = "/upload";
+                                var xhr = null;
+                                if (window.XMLHttpRequest)
+                                {// code for IE7+, Firefox, Chrome, Opera, Safari
+                                    xhr = new XMLHttpRequest();
+                                } else
+                                {// code for IE6, IE5
+                                    xhr = new ActiveXObject("Microsoft.XMLHTTP");
+                                }
+                                xhr.onreadystatechange = function ()
+                                {
+                                    if (xhr.readyState == 4 && xhr.status == 200) {
+                                        var response = JSON.parse(xhr.responseText);
+
+                                        postSign(response.data, response.serial);
+
+                                    }
+                                }
+
+                                xhr.onerror = function () {
+                                    alert("Error! Upload failed. Can not connect to server.");
+                                };
+
+
+                                var certificateChain = [];
+                                certificateChain.push(certBase64.replace(/\n|\r/g, ""));
+                                var formData = new FormData();
+                                formData.append("uploadFile", document.getElementById("uploadFile").files[0]);
+                                formData.append("certificateChain", JSON.stringify(certificateChain));
+
+                                xhr.open('POST', actionUrl);
+                                xhr.send(formData);
+
+                            } else {
+                                alert(received_msg);
+                            }
+
+
+
+                        };
+
+                        ws.onclose = function ()
+                        {
+                            // websocket is closed.
+                            //alert("Connection is closed..."); 
+                        };
+                    } else
+                    {
+                        // The browser doesn't support WebSocket
+                        alert("WebSocket NOT supported by your Browser!");
+                    }
+                }
+
+            }
+
+            function postSign(data, serial)
+            {
+                showLoading();
+                var signature;
+                if ("WebSocket" in window)
+                {
+                    //alert("WebSocket is supported by your Browser!");
+
+                    // Let us open a web socket
+                    var ws = new WebSocket("ws://localhost:8887");
+                    var pin = document.getElementById('pin').value;
+                    var message = {
+                        'command': 'sign',
+                        'data': data,
+                        'serial': serial,
+                        'pin': pin,
+                    };
+                    ws.onopen = function ()
+                    {
+                        ws.send(JSON.stringify(message));
+                    };
+
+                    ws.onmessage = function (evt)
+                    {
+                        hideLoading();
+                        var received_msg = evt.data;
+                        var obj = JSON.parse(received_msg);
+                        ws.close();
+                        if (obj.code == '0') {
+                            signature = obj.data;
+                            var actionUrl = "/uploadSignature";
+                            var xhr = null;
+                            if (window.XMLHttpRequest)
+                            {// code for IE7+, Firefox, Chrome, Opera, Safari
+                                xhr = new XMLHttpRequest();
+                            } else
+                            {// code for IE6, IE5
+                                xhr = new ActiveXObject("Microsoft.XMLHTTP");
+                            }
+                            xhr.onreadystatechange = function ()
+                            {
+                                if (xhr.readyState == 4 && xhr.status == 200) {
+                                    document.getElementById("content").innerHTML = xhr.responseText;
+
+                                }
+                            }
+
+                            xhr.onerror = function () {
+                                alert("Error! Upload failed. Can not connect to server.");
+                            };
+
+
+                            signature = signature.replace(/\n|\r/g, "");
+                            xhr.open('POST', actionUrl);
+                            xhr.send(signature);
+
+                        } else {
+                            alert(received_msg);
+                        }
+
+
+
+                    };
+
+                    ws.onclose = function ()
+                    {
+                        // websocket is closed.
+                        //alert("Connection is closed..."); 
+                    };
+                } else
+                {
+                    // The browser doesn't support WebSocket
+                    alert("WebSocket NOT supported by your Browser!");
+                }
+            }
+
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+
+    </head>
+    <body>
+        <div id="loading" class="loader"></div>
+        <div class="example">
+            <div id="drop_zone">Drop files here</div>
+            <output id="file_list2"></output>
+        </div>
+
+
+        <output id="list"></output>
+        <br>
+        <br>
+        <br>
+        <form action="upload" method="post" id="form">
+            <br />
+            <div id="cbCert">
+                <label for="certificate">Certificate:</label>
+                <select name="certificate" id="certificate">
+                    <option value="">Select certificate</option>
+
+                </select> <button onclick="getCertificates();
+                return false;"> Refresh</button>
+            </div>
+            <br />
+            File: 
+
+            <input type="file" name="uploadFile" id="uploadFile" accept=".pdf , .docx, .xlsx, .pptx, .xml"/> 
+            <br />
+            <br />
+            <input type="hidden" id="fileContent" name="fileContent"/> 
+            PIN: <input type="password" id="pin" name="pin"/> 
+            <input type="button" onclick="sign();" value="Sign & Upload"/> 
+            <br/>
+
+        </form>
+
+        <div id="content" style='padding: 3px; width: 100%; word-break: break-all; word-wrap: break-word;'>
+
+        </div>
+
+        <script type="text/javascript">
+            function handleFileSelect(evt) {
+                evt.stopPropagation();
+                evt.preventDefault();
+
+                var files = evt.dataTransfer.files; // FileList object.
+
+                // files is a FileList of File objects. List some properties.
+                var output = [];
+                for (var i = 0, f; f = files[i]; i++) {
+                    output.push('<li><strong>', escape(f.name), '</strong> (', f.type || 'n/a', ') - ',
+                            f.size, ' bytes, last modified: ',
+                            f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a',
+                            '</li>');
+                }
+                document.getElementById('list').innerHTML = '<ul>' + output.join('') + '</ul>';
+                document.getElementById('uploadFile').files = files;
+            }
+
+            function handleDragOver(evt) {
+                evt.stopPropagation();
+                evt.preventDefault();
+                evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+            }
+
+            // Setup the dnd listeners.
+            var dropZone = document.getElementById('drop_zone');
+            dropZone.addEventListener('dragover', handleDragOver, false);
+            dropZone.addEventListener('drop', handleFileSelect, false);
+        </script>  
+    </body>
+
+
+</html>

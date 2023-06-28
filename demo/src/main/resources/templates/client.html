@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Demo Sign</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <script type="text/javascript">
+
+            function sign()
+            {
+                var file = document.getElementById("uploadFile").files[0];
+                var fileName = file.name;
+                var ext = fileName.substr(fileName.lastIndexOf('.') + 1).toLowerCase();
+                if (file) {
+                    var reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = function (evt) {
+                        var fileContent = evt.target.result;
+
+                        var dataFile;
+
+                        if ("WebSocket" in window)
+                        {
+                            //alert("WebSocket is supported by your Browser!");
+
+                            // Let us open a web socket
+                            var ws = new WebSocket("ws://localhost:10489");
+                            var message = {
+                                'command': 'signFile',
+                                'fileContent': fileContent,
+                                'fileType' : ext
+                            };
+                            ws.onopen = function ()
+                            {
+                                ws.send(JSON.stringify(message));
+                            };
+
+                            ws.onmessage = function (evt)
+                            {
+                                var received_msg = evt.data;
+                                ws.close();
+                                var obj = JSON.parse(received_msg);
+
+                                if (obj.Code == '0') {
+                                    dataFile = obj.Data;
+                                    var actionUrl = "/uploadbase64";
+                                    var xhr = null;
+                                    if (window.XMLHttpRequest)
+                                    {// code for IE7+, Firefox, Chrome, Opera, Safari
+                                        xhr = new XMLHttpRequest();
+                                    } else
+                                    {// code for IE6, IE5
+                                        xhr = new ActiveXObject("Microsoft.XMLHTTP");
+                                    }
+                                    xhr.onreadystatechange = function ()
+                                    {
+                                        if (xhr.readyState == 4 && xhr.status == 200) {
+                                            document.getElementById("content").innerHTML = xhr.responseText;
+
+                                        }
+                                    }
+
+                                    xhr.onerror = function () {
+                                        alert("Error! Upload failed. Can not connect to server.");
+                                    };
+                                    xhr.open('POST', actionUrl);
+                                    xhr.setRequestHeader("fileName", fileName);
+                                    dataFile = dataFile.replace(/\n|\r/g, "");
+                                    xhr.send(dataFile);
+
+                                } else {
+                                    document.getElementById("content").innerHTML = obj.Description;
+                                }
+
+
+
+                            };
+
+                            ws.onclose = function ()
+                            {
+                                // websocket is closed.
+                                //alert("Connection is closed..."); 
+                            };
+                        } else
+                        {
+                            // The browser doesn't support WebSocket
+                            alert("WebSocket NOT supported by your Browser!");
+                        }
+                    }
+                    reader.onerror = function (evt) {
+                        document.getElementById("fileContents").innerHTML = "error reading file";
+                    }
+                }
+
+            }
+
+
+        </script>
+    </head>
+    <body>
+        <form action="upload" method="post" id="form">
+            <br />
+            File: 
+
+            <input type="file" name="uploadFile" id="uploadFile" accept=".pdf , .docx, .xlsx, .pptx, .xml"/> 
+            <br />
+            <br />
+            <input type="hidden" id="fileContent" name="fileContent"/> 
+            <input type="button" onclick="sign();" value="Sign & Upload"/> 
+            <br/>
+
+        </form>
+
+        <div id="content" style='padding: 3px; width: 100%; word-break: break-all; word-wrap: break-word;'>
+
+        </div>
+    </body>
+
+
+</html>
